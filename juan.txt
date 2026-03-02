@@ -1,0 +1,82 @@
+Instalación del Servidor Web:
+sudo apt install apache2 -y
+sudo ufw enable
+sudo ufw allow Apache && sudo ufw allow ‘Apache full’ && sudo ufw allow ‘Apache Secure’ && sudo ufw status
+sudo systemctl status apache2
+
+Creación de la estructura del directorio:
+sudo mkdir -p /var/www/page1
+“cd /var/www/html”
+“sudo cp index.html /var/www/page1” y cambiar la línea “It Works”
+
+Crear los hosts virtuales para cada dominio
+cd /etc/apache2/sites-available/
+sudo cp 000-default.conf clase2e.org.conf
+sudo cp default-ssl.conf clase2e.org-ssl.conf
+sudo a2ensite clase2e.org.conf && sudo systemctl restart apache2
+sudo nano clase2e.org.conf
+Agregamos a cada archivo 
+DirectoryIndex index.html
+DocumentRoot /var/www/page1
+
+Habilitar los archivos de configuración
+sudo systemctl reload apache2
+Configuramos el SSL:
+sudo a2ensite clase2e.org-ssl.conf
+sudo a2enmod ssl
+sudo openssl genrsa -des3 -out clase2e.key 2048
+sudo openssl req -new -key clase2e.key -out clase2e.csr
+sudo openssl x509 -req -days 365 -in clase2e.csr -signkey clase2e.key -out clase2e.crt
+sudo cp clase2e.key /etc/ssl/private/
+sudo cp clase2e.crt /etc/ssl/certs/
+sudo nano clase2e.org-ssl.conf y agregar
+DirectoryIndex index.html
+DocumentRoot /var/www/page1
+Descomentar la linea que empieza por SSLoptions +FakeBasicAuth
+Cambiar los nombres de los certs y el private por los creado
+sudo systemctl restart apache2 (Poner la contraseña del .key)
+
+
+DNS
+
+sudo apt install bind9 -y 
+cd /etc/bind/
+sudo nano named.conf.options
+Descomentar “forwarders”, quitar el 0.0.0.0 y agregar los DNS 8.8.8.8 | 8.8.4.4 | 1.1.1.1
+Agregar listen-on { any; }; y allow-query { any; };
+sudo nano named.conf.local
+Agregar zone “”clase2e.org” { type master; file “/etc/bind/zones/db.clase2e.conf”;};
+zone “20.172.in-addr.arpa”{ type master; file “/etc/bind/zones/db.20.172.in-addr.arpa”; };
+
+Configuración de las zonas
+sudo mkdir zones
+sudo cp db.local zones/db.clase2e.conf && sudo cp db.127 zones/db.20.172.in-addr.arpa
+
+Zona Directa
+sudo nano db.clase2e.conf
+Cambiar el 2 por 100
+Cambiar ambos localhost por clase2e.org.
+Borrar la última línea y cambiarla por www  IN  CNAME  clase2e.org. (EL PUNTO DEL FINAL)
+127.0.0.1 cambiarlo por la IP
+Poner SERVERUBUNTUxx en el NS
+
+
+Zona Inversa
+sudo nano db.20.172.in-addr.arpa
+Poner lo mismo pero en la última línea cambiar el 1.0.0 por los 2 últimos octetos de la IP (2.102)
+
+
+sudo systemctl restart bind9
+
+Configurar los Archivos de Apache
+cd /etc/apache2/sites-available/
+sudo nano clase2e.org.conf
+Agregamos “ServerName SERVERUBUNTU02.clase2e.org” y “ServerAlias www.clase2e.org”
+sudo nano clase2e.org-ssl.conf
+Agregamos “ServerName SERVERUBUNTU02.clase2e.org” y “ServerAlias www.clase2e.org”
+sudo systemctl restart apache2
+
+Configurar el DNS en netplan
+sudo nano /etc/netplan/*.yaml
+En nameservers - addresses agregamos nuestra IP
+sudo netplan apply
